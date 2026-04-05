@@ -86,29 +86,6 @@ create table if not exists public.team_matches (
   created_at timestamptz not null default now()
 );
 
-create table if not exists public.google_connections (
-  user_id uuid primary key references public.profiles(id) on delete cascade,
-  google_email text,
-  calendar_id text not null default 'primary',
-  provider_token text,
-  provider_refresh_token text,
-  token_updated_at timestamptz not null default now(),
-  connected_at timestamptz not null default now()
-);
-
-create table if not exists public.google_conflicts (
-  id uuid primary key default gen_random_uuid(),
-  team_id uuid not null references public.teams(id) on delete cascade,
-  user_id uuid not null references public.profiles(id) on delete cascade,
-  practice_date date not null,
-  start_at timestamptz not null,
-  end_at timestamptz not null,
-  is_busy boolean not null,
-  busy_ranges jsonb not null default '[]'::jsonb,
-  checked_at timestamptz not null default now(),
-  unique (team_id, user_id, practice_date)
-);
-
 grant usage on schema public to anon;
 grant usage on schema public to authenticated;
 grant usage on schema public to service_role;
@@ -363,7 +340,6 @@ create index if not exists idx_weekly_availability_team_date on public.weekly_av
 create index if not exists idx_weekly_availability_user_id on public.weekly_availability(user_id);
 create index if not exists idx_extra_availability_team_date on public.extra_availability(team_id, available_date);
 create index if not exists idx_team_matches_team_date on public.team_matches(team_id, match_date);
-create index if not exists idx_google_conflicts_team_date on public.google_conflicts(team_id, practice_date);
 
 alter table public.profiles enable row level security;
 alter table public.teams enable row level security;
@@ -372,8 +348,6 @@ alter table public.default_practice_days enable row level security;
 alter table public.weekly_availability enable row level security;
 alter table public.extra_availability enable row level security;
 alter table public.team_matches enable row level security;
-alter table public.google_connections enable row level security;
-alter table public.google_conflicts enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own"
@@ -665,31 +639,3 @@ with check (
   )
 );
 
-drop policy if exists "google_connections_select_own" on public.google_connections;
-create policy "google_connections_select_own"
-on public.google_connections
-for select
-to authenticated
-using ((select auth.uid()) = user_id);
-
-drop policy if exists "google_connections_modify_own" on public.google_connections;
-create policy "google_connections_modify_own"
-on public.google_connections
-for all
-to authenticated
-using ((select auth.uid()) = user_id)
-with check ((select auth.uid()) = user_id);
-
-drop policy if exists "google_conflicts_select_if_member" on public.google_conflicts;
-create policy "google_conflicts_select_if_member"
-on public.google_conflicts
-for select
-to authenticated
-using (
-  exists (
-    select 1
-    from public.team_members tm
-    where tm.team_id = google_conflicts.team_id
-      and tm.user_id = (select auth.uid())
-  )
-);

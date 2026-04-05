@@ -221,18 +221,13 @@ export default async function DashboardPage({
       console.warn("[availability defaults] week seed failed", ensureDefaultsError);
     }
 
-    const [availData, googleData, weekMatchesData] = await Promise.all([
+    const [availData, weekMatchesData] = await Promise.all([
       supabase
         .from("weekly_availability")
         .select("id, user_id, practice_date, status, note")
         .eq("team_id", membership.team_id)
         .gte("practice_date", startDate)
         .lte("practice_date", endDate),
-      supabase
-        .from("google_connections")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle(),
       supabase
         .from("team_matches")
         .select("id, team_id, created_by, match_date, start_at, opponent, note, created_at")
@@ -290,7 +285,6 @@ export default async function DashboardPage({
             windows={windows}
             members={membersList}
             availability={availabilityList}
-            googleConnected={Boolean(googleData.data)}
             matches={(weekMatchesData.data ?? []) as TeamMatchRow[]}
           />
         </section>

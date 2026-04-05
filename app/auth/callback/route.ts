@@ -16,7 +16,6 @@ export async function GET(request: Request) {
 
     if (!error) {
       const user = data.user;
-      const session = data.session;
 
       if (user) {
         const guessedName =
@@ -29,22 +28,6 @@ export async function GET(request: Request) {
           display_name: guessedName,
           email: user.email ?? null,
         });
-      }
-
-      if (user && session?.provider_token) {
-        await supabase.from("google_connections").upsert(
-          {
-            user_id: user.id,
-            google_email: user.email,
-            calendar_id: "primary",
-            provider_token: session.provider_token,
-            provider_refresh_token: session.provider_refresh_token ?? null,
-            token_updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "user_id",
-          }
-        );
       }
 
       return NextResponse.redirect(`${origin}${next}`);

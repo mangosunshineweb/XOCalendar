@@ -4,7 +4,7 @@ Weekly CS team planning with:
 
 - Supabase Auth (Google OAuth)
 - Supabase Postgres for availability data
-- Next.js App Router route handlers for secure Google API calls
+- Calendar subscription feed (ICS) for Google Calendar
 
 ## 1. Environment variables
 
@@ -28,9 +28,7 @@ If this project is in a monorepo, set Vercel Project Settings -> Root Directory 
 2. In Google Cloud Console OAuth client:
 	- Add your site URL in Authorized JavaScript origins.
 	- Add your Supabase callback URL in Authorized redirect URIs.
-3. Keep Google scopes for calendar access:
-	- `https://www.googleapis.com/auth/calendar`
-	- `https://www.googleapis.com/auth/calendar.events`
+3. No additional Google Calendar API scopes are required for feed subscription.
 
 ## 3. Database tables
 
@@ -52,11 +50,10 @@ Open http://localhost:3000.
 - Auth error page: [app/auth/error/page.tsx](app/auth/error/page.tsx)
 - Weekly board dashboard: [app/dashboard/page.tsx](app/dashboard/page.tsx)
 - Manual availability API: [app/api/team/availability/route.ts](app/api/team/availability/route.ts)
-- Google FreeBusy API: [app/api/google/freebusy/route.ts](app/api/google/freebusy/route.ts)
-- Google event creation API: [app/api/google/events/route.ts](app/api/google/events/route.ts)
+- Calendar feed API: [app/api/calendar/feed/route.ts](app/api/calendar/feed/route.ts)
 
 ## Notes
 
-- Google API calls are server-side route handlers.
+- Calendar integration uses a signed ICS feed URL.
 - Current dashboard uses placeholder teammates and focuses on MVP flow.
 - Next step is wiring real team members and saved board state from Supabase.

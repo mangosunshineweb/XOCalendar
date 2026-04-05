@@ -64,7 +64,7 @@ export async function GET(request: Request) {
     return new NextResponse("Feed not found", { status: 404 });
   }
 
-  const [{ data: team }, { data: practiceDays }, { data: matches }] = await Promise.all([
+  const [{ data: team }, { data: practiceDays }, { data: matches }, { data: teamMembers }] = await Promise.all([
     admin
       .from("teams")
       .select("name, timezone")
@@ -82,6 +82,10 @@ export async function GET(request: Request) {
       .gte("start_at", new Date().toISOString())
       .lte("start_at", addDays(new Date(), FEED_WINDOW_DAYS).toISOString())
       .order("start_at", { ascending: true }),
+    admin
+      .from("team_members")
+      .select("user_id")
+      .eq("team_id", claims.teamId),
   ]);
 
   const teamRow = team as TeamRow | null;
@@ -92,28 +96,24 @@ export async function GET(request: Request) {
   const timezone = teamRow.timezone || "Europe/Copenhagen";
   const today = startOfDay(new Date());
   const endDate = addDays(today, FEED_WINDOW_DAYS);
+  const totalMembers = (teamMembers ?? []).length;
 
-  const practiceEvents = buildPracticeEvents(
+  const practiceEvents = await buildPracticeEvents(
+    admin,
     claims.teamId,
     (practiceDays ?? []) as PracticeDayRow[],
     today,
     endDate,
-    timezone
+    timezone,
+    totalMembers
   );
 
-  const matchEvents = ((matches ?? []) as MatchRow[]).map((match) => {
-    const start = new Date(match.start_at);
-    const end = new Date(start.getTime() + MATCH_DURATION_MINUTES * 60 * 1000);
-
-    return {
-      uid: `match-${match.id}@xocalendar`,
-      summary: match.opponent ? `Match vs ${match.opponent}` : "Team Match",
-      description: match.note ?? "",
-      start: toIcsUtcDateTime(start),
-      end: toIcsUtcDateTime(end),
-      useUtc: true,
-    } satisfies IcsEvent;
-  });
+  const matchEvents = await buildMatchEvents(
+    admin,
+    claims.teamId,
+    (matches ?? []) as MatchRow[],
+    totalMembers
+  );
 
   const calendar = buildIcsCalendar({
     name: `${teamRow.name} - XO Calendar`,
@@ -131,12 +131,14 @@ export async function GET(request: Request) {
   });
 }
 
-function buildPracticeEvents(
+async function buildPracticeEvents(
+  admin: any,
   teamId: string,
   practiceDays: PracticeDayRow[],
   startDate: Date,
   endDate: Date,
-  timezone: string
+  timezone: string,
+  totalMembers: number
 ) {
   const events: IcsEvent[] = [];
 
@@ -147,15 +149,76 @@ function buildPracticeEvents(
 
     for (const date of dates) {
       const dateKey = format(date, "yyyyMMdd");
+      const dateStr = format(date, "yyyy-MM-dd");
+
+      // Fetch availability for this practice date
+      const { data: availability } = await admin
+        .from("weekly_availability")
+        .select("status")
+        .eq("team_id", teamId)
+        .eq("practice_date", dateStr)
+        .eq("status", "available");
+
+      const confirmedCount = (availability ?? []).length;
+      const confirmationStatus =
+        confirmedCount === totalMembers
+          ? "✓ All confirmed"
+          : `${confirmedCount}/${totalMembers} confirmed`;
+
+      const description = `Scheduled from XO Calendar practice windows.\n\n${confirmationStatus}`;
+
       events.push({
         uid: `practice-${teamId}-${dateKey}@xocalendar`,
-        summary: "Team Practice",
-        description: "Scheduled from XO Calendar practice windows.",
+        summary: `Team Practice ${confirmedCount === totalMembers ? "✓" : ""}`,
+        description: description,
         start: `${dateKey}T${clockToIcsTime(startClock)}`,
         end: `${dateKey}T${clockToIcsTime(endClock)}`,
         timezone,
       });
     }
+  }
+
+  return events;
+}
+
+async function buildMatchEvents(
+  admin: any,
+  teamId: string,
+  matches: MatchRow[],
+  totalMembers: number
+) {
+  const events: IcsEvent[] = [];
+
+  for (const match of matches) {
+    const start = new Date(match.start_at);
+    const end = new Date(start.getTime() + MATCH_DURATION_MINUTES * 60 * 1000);
+    const dateStr = format(start, "yyyy-MM-dd");
+
+    // Fetch availability for this match date
+    const { data: availability } = await admin
+      .from("weekly_availability")
+      .select("status")
+      .eq("team_id", teamId)
+      .eq("practice_date", dateStr)
+      .eq("status", "available");
+
+    const confirmedCount = (availability ?? []).length;
+    const confirmationStatus =
+      confirmedCount === totalMembers
+        ? "✓ All confirmed"
+        : `${confirmedCount}/${totalMembers} confirmed`;
+
+    const baseDescription = match.note ? `${match.note}\n\n` : "";
+    const description = `${baseDescription}${confirmationStatus}`;
+
+    events.push({
+      uid: `match-${match.id}@xocalendar`,
+      summary: match.opponent ? `Match vs ${match.opponent} ${confirmedCount === totalMembers ? "✓" : ""}` : "Team Match",
+      description: description,
+      start: toIcsUtcDateTime(start),
+      end: toIcsUtcDateTime(end),
+      useUtc: true,
+    } satisfies IcsEvent);
   }
 
   return events;

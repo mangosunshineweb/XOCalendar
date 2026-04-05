@@ -15,7 +15,6 @@ type Props = {
   windows: PracticeWindow[];
   members: TeamMemberRow[];
   availability: WeeklyAvailabilityRow[];
-  googleConnected: boolean;
   matches: TeamMatchRow[];
 };
 
@@ -33,15 +32,12 @@ export function WeeklyBoard({
   windows,
   members,
   availability,
-  googleConnected,
   matches,
 }: Props) {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [localAvailability, setLocalAvailability] = useState(() =>
     dedupeAvailabilityRows(availability)
   );
-  const [busyByDate, setBusyByDate] = useState<Record<string, boolean>>({});
-  const [creatingDate, setCreatingDate] = useState<string | null>(null);
   const [eventMessage, setEventMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -157,99 +153,6 @@ export function WeeklyBoard({
     }
 
     return undefined;
-  };
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    async function loadBusyWindows() {
-      if (!googleConnected || windows.length === 0) {
-        setBusyByDate({});
-        return;
-      }
-
-      const actionableWindows = windows.filter(
-        (window) => window.isPracticeDay && window.startTime && window.endTime
-      );
-
-      if (actionableWindows.length === 0) {
-        setBusyByDate({});
-        return;
-      }
-
-      const checks = await Promise.all(
-        actionableWindows.map(async (window) => {
-          const response = await fetch("/api/google/freebusy", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              timeMin: `${window.date}T${window.startTime}:00Z`,
-              timeMax: `${window.date}T${window.endTime}:00Z`,
-              timeZone: "UTC",
-            }),
-          });
-
-          if (!response.ok) {
-            return [window.date, false] as const;
-          }
-
-          const data = (await response.json()) as {
-            calendars?: Record<string, { busy?: Array<{ start: string; end: string }> }>;
-          };
-
-          const firstCalendar = Object.values(data.calendars ?? {})[0];
-          return [window.date, Boolean(firstCalendar?.busy?.length)] as const;
-        })
-      );
-
-      if (!isCancelled) {
-        setBusyByDate(Object.fromEntries(checks));
-      }
-    }
-
-    void loadBusyWindows();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [googleConnected, windows]);
-
-  const createGoogleEvent = async (practiceWindow: PracticeWindow) => {
-    if (!practiceWindow.isPracticeDay || !practiceWindow.startTime || !practiceWindow.endTime) {
-      setEventMessage("This day is not a default practice day.");
-      return;
-    }
-
-    setCreatingDate(practiceWindow.date);
-    setEventMessage(null);
-
-    const startDateTime = `${practiceWindow.date}T${practiceWindow.startTime}:00+02:00`;
-    const endDateTime = `${practiceWindow.date}T${practiceWindow.endTime}:00+02:00`;
-
-    const res = await fetch("/api/google/create-event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        summary: "CS Team Practice",
-        description: `Team practice session for ${practiceWindow.label}`,
-        startDateTime,
-        endDateTime,
-        timeZone: "Europe/Copenhagen",
-      }),
-    });
-
-    const data = (await res.json()) as { ok?: boolean; htmlLink?: string; error?: string };
-
-    if (res.ok) {
-      setEventMessage(`Event created: ${practiceWindow.label}`);
-      if (data.htmlLink) {
-        globalThis.open(data.htmlLink, "_blank", "noopener,noreferrer");
-      }
-    } else {
-      setEventMessage(data.error ?? "Failed to create event");
-    }
-
-    setCreatingDate(null);
   };
 
   const openGoogleCalendarTemplate = (practiceWindow: PracticeWindow) => {
@@ -411,16 +314,6 @@ export function WeeklyBoard({
                         >
                           Open in Google
                         </button>
-                        {googleConnected ? (
-                          <button
-                            type="button"
-                            onClick={() => void createGoogleEvent(window)}
-                            disabled={creatingDate === window.date}
-                            className="rounded-md border border-white/35 bg-black px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {creatingDate === window.date ? "Creating..." : "Create event"}
-                          </button>
-                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -462,11 +355,6 @@ export function WeeklyBoard({
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 text-xs text-white/70">
                               <span>{isSaving ? "Saving..." : status ?? "No answer"}</span>
-                              {window.isPracticeDay && googleConnected && busyByDate[window.date] ? (
-                                <span className="inline-flex rounded-full border border-white/35 bg-black px-2 py-0.5 text-[11px] font-medium text-white/80">
-                                  Busy in Google
-                                </span>
-                              ) : null}
                             </div>
 
                             <div className="flex flex-wrap gap-1.5">
