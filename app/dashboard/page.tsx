@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { addDays, format, startOfWeek } from "date-fns";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { buildPracticeWindows } from "@/lib/team/practice-windows";
 import { MonthExtraAvailability } from "../../components/month-extra-availability";
@@ -141,7 +142,9 @@ export default async function DashboardPage({
     .eq("team_id", membership.team_id)
     .eq("is_active", true);
 
-  const { data: members } = await supabase
+  const admin = createAdminClient();
+
+  const membersQuery = (admin ?? supabase)
     .from("team_members")
     .select(
       `
@@ -154,6 +157,8 @@ export default async function DashboardPage({
     `
     )
     .eq("team_id", membership.team_id);
+
+  const { data: members } = await membersQuery;
 
   const membersList = (members ?? []) as TeamMemberRow[];
   const playersCount = membersList.length;

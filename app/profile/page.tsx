@@ -6,6 +6,8 @@ import { ProfileAccountForm } from "@/components/profile-account-form";
 import { SignOutButton } from "@/app/components/sign-out-button";
 import { createCalendarFeedToken } from "@/lib/calendar/feed-token";
 
+const CALENDAR_FEED_URL_VERSION = "20260405-2";
+
 export default async function ProfilePage() {
   const supabase = await createClient();
   const {
@@ -42,7 +44,9 @@ export default async function ProfilePage() {
     : null;
 
   const appOrigin = await getAppOrigin();
-  const subscriptionUrl = token && appOrigin ? `${appOrigin}/api/calendar/feed?token=${token}` : null;
+  const subscriptionUrl = token && appOrigin
+    ? `${appOrigin}/api/calendar/feed?token=${token}&v=${CALENDAR_FEED_URL_VERSION}`
+    : null;
   const isLocalSubscriptionUrl = Boolean(subscriptionUrl && isLocalOrigin(subscriptionUrl));
   const subscriptionIssue = !teamId
     ? "Join a team to generate your subscription URL."

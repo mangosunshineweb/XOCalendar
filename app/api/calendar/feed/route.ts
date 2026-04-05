@@ -17,9 +17,17 @@ type PracticeDayRow = {
 
 type MatchRow = {
   id: string;
+  match_date: string;
   start_at: string;
   opponent: string;
   note: string | null;
+};
+
+type AvailabilityCount = {
+  yes: number;
+  late: number;
+  no: number;
+  responded: number;
 };
 
 type IcsEvent = {
@@ -77,7 +85,7 @@ export async function GET(request: Request) {
       .eq("is_active", true),
     admin
       .from("team_matches")
-      .select("id, start_at, opponent, note")
+      .select("id, match_date, start_at, opponent, note")
       .eq("team_id", claims.teamId)
       .gte("start_at", new Date().toISOString())
       .lte("start_at", addDays(new Date(), FEED_WINDOW_DAYS).toISOString())
@@ -96,23 +104,36 @@ export async function GET(request: Request) {
   const timezone = teamRow.timezone || "Europe/Copenhagen";
   const today = startOfDay(new Date());
   const endDate = addDays(today, FEED_WINDOW_DAYS);
+  const startDateKey = format(today, "yyyy-MM-dd");
+  const endDateKey = format(endDate, "yyyy-MM-dd");
   const totalMembers = (teamMembers ?? []).length;
 
-  const practiceEvents = await buildPracticeEvents(
+  const practiceWeekdaySet = new Set(
+    ((practiceDays ?? []) as PracticeDayRow[]).map((day) => day.weekday)
+  );
+
+  const availabilityByDate = await loadAvailabilityCountsByDate(
     admin,
+    claims.teamId,
+    startDateKey,
+    endDateKey
+  );
+
+  const practiceEvents = await buildPracticeEvents(
     claims.teamId,
     (practiceDays ?? []) as PracticeDayRow[],
     today,
     endDate,
     timezone,
-    totalMembers
+    totalMembers,
+    availabilityByDate
   );
 
   const matchEvents = await buildMatchEvents(
-    admin,
-    claims.teamId,
     (matches ?? []) as MatchRow[],
-    totalMembers
+    totalMembers,
+    availabilityByDate,
+    practiceWeekdaySet
   );
 
   const calendar = buildIcsCalendar({
@@ -125,20 +146,20 @@ export async function GET(request: Request) {
     status: 200,
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
-      "Cache-Control": "public, max-age=300",
+      "Cache-Control": "no-cache, no-store, must-revalidate",
       "Content-Disposition": 'inline; filename="xocalendar.ics"',
     },
   });
 }
 
 async function buildPracticeEvents(
-  admin: any,
   teamId: string,
   practiceDays: PracticeDayRow[],
   startDate: Date,
   endDate: Date,
   timezone: string,
-  totalMembers: number
+  totalMembers: number,
+  availabilityByDate: Map<string, AvailabilityCount>
 ) {
   const events: IcsEvent[] = [];
 
@@ -151,25 +172,17 @@ async function buildPracticeEvents(
       const dateKey = format(date, "yyyyMMdd");
       const dateStr = format(date, "yyyy-MM-dd");
 
-      // Fetch availability for this practice date
-      const { data: availability } = await admin
-        .from("weekly_availability")
-        .select("status")
-        .eq("team_id", teamId)
-        .eq("practice_date", dateStr)
-        .eq("status", "available");
-
-      const confirmedCount = (availability ?? []).length;
-      const confirmationStatus =
-        confirmedCount === totalMembers
-          ? "✓ All confirmed"
-          : `${confirmedCount}/${totalMembers} confirmed`;
-
-      const description = `Scheduled from XO Calendar practice windows.\n\n${confirmationStatus}`;
+      const counts = availabilityByDate.get(dateStr) ?? emptyAvailabilityCount();
+      const yesCount = totalMembers - counts.late - counts.no;
+      const lateCount = counts.late;
+      const noCount = counts.no;
+      const attendanceLine = `Yes: ${yesCount} | Late: ${lateCount} | No: ${noCount}`;
+      const description = `${attendanceLine}\n\nScheduled from XO Calendar.`;
+      const compactCounts = `Y:${yesCount} L:${lateCount} N:${noCount}`;
 
       events.push({
         uid: `practice-${teamId}-${dateKey}@xocalendar`,
-        summary: `Team Practice ${confirmedCount === totalMembers ? "✓" : ""}`,
+        summary: `${compactCounts} - Team Practice`,
         description: description,
         start: `${dateKey}T${clockToIcsTime(startClock)}`,
         end: `${dateKey}T${clockToIcsTime(endClock)}`,
@@ -182,38 +195,34 @@ async function buildPracticeEvents(
 }
 
 async function buildMatchEvents(
-  admin: any,
-  teamId: string,
   matches: MatchRow[],
-  totalMembers: number
+  totalMembers: number,
+  availabilityByDate: Map<string, AvailabilityCount>,
+  practiceWeekdaySet: Set<number>
 ) {
   const events: IcsEvent[] = [];
 
   for (const match of matches) {
     const start = new Date(match.start_at);
     const end = new Date(start.getTime() + MATCH_DURATION_MINUTES * 60 * 1000);
-    const dateStr = format(start, "yyyy-MM-dd");
+    const dateStr = normalizeDateKey(match.match_date);
+    const counts = availabilityByDate.get(dateStr) ?? emptyAvailabilityCount();
+    const hasImplicitDefaultYes = practiceWeekdaySet.has(start.getDay());
+    const yesCount = hasImplicitDefaultYes
+      ? totalMembers - counts.late - counts.no
+      : counts.yes;
+    const lateCount = counts.late;
+    const noCount = counts.no;
 
-    // Fetch availability for this match date
-    const { data: availability } = await admin
-      .from("weekly_availability")
-      .select("status")
-      .eq("team_id", teamId)
-      .eq("practice_date", dateStr)
-      .eq("status", "available");
-
-    const confirmedCount = (availability ?? []).length;
-    const confirmationStatus =
-      confirmedCount === totalMembers
-        ? "✓ All confirmed"
-        : `${confirmedCount}/${totalMembers} confirmed`;
-
+    const attendanceLine = `Yes: ${yesCount} | Late: ${lateCount} | No: ${noCount}`;
     const baseDescription = match.note ? `${match.note}\n\n` : "";
-    const description = `${baseDescription}${confirmationStatus}`;
+    const description = `${baseDescription}${attendanceLine}`;
+    const compactCounts = `Y:${yesCount} L:${lateCount} N:${noCount}`;
+    const matchTitle = match.opponent ? `Match vs ${match.opponent}` : "Team Match";
 
     events.push({
       uid: `match-${match.id}@xocalendar`,
-      summary: match.opponent ? `Match vs ${match.opponent} ${confirmedCount === totalMembers ? "✓" : ""}` : "Team Match",
+      summary: `${compactCounts} - ${matchTitle}`,
       description: description,
       start: toIcsUtcDateTime(start),
       end: toIcsUtcDateTime(end),
@@ -222,6 +231,53 @@ async function buildMatchEvents(
   }
 
   return events;
+}
+
+async function loadAvailabilityCountsByDate(
+  admin: any,
+  teamId: string,
+  startDate: string,
+  endDate: string
+) {
+  const { data } = await admin
+    .from("weekly_availability")
+    .select("practice_date, status")
+    .eq("team_id", teamId)
+    .gte("practice_date", startDate)
+    .lte("practice_date", endDate);
+
+  const countsByDate = new Map<string, AvailabilityCount>();
+
+  for (const row of (data ?? []) as { practice_date: string; status: string }[]) {
+    const dateKey = normalizeDateKey(row.practice_date);
+    const counts = countsByDate.get(dateKey) ?? emptyAvailabilityCount();
+
+    if (row.status === "available") {
+      counts.yes += 1;
+    } else if (row.status === "late") {
+      counts.late += 1;
+    } else if (row.status === "unavailable") {
+      counts.no += 1;
+    }
+
+    counts.responded = counts.yes + counts.late + counts.no;
+    countsByDate.set(dateKey, counts);
+  }
+
+  return countsByDate;
+}
+
+function emptyAvailabilityCount(): AvailabilityCount {
+  return {
+    yes: 0,
+    late: 0,
+    no: 0,
+    responded: 0,
+  };
+}
+
+function normalizeDateKey(value: string) {
+  return value.slice(0, 10);
 }
 
 function datesForWeekday(startDate: Date, endDate: Date, weekday: number) {
@@ -261,6 +317,25 @@ function escapeIcsText(value: string) {
     .replaceAll(",", "\\,")
     .replaceAll("\r\n", "\\n")
     .replaceAll("\n", "\\n");
+}
+
+// RFC 5545 §3.1: fold lines longer than 75 octets
+function foldIcsLine(line: string): string {
+  const encoder = new TextEncoder();
+  if (encoder.encode(line).length <= 75) return line;
+  let result = "";
+  let chunk = "";
+  for (const char of line) {
+    const candidate = chunk + char;
+    if (encoder.encode(candidate).length > (result === "" ? 75 : 74)) {
+      result += (result === "" ? "" : "\r\n ") + chunk;
+      chunk = char;
+    } else {
+      chunk = candidate;
+    }
+  }
+  if (chunk) result += (result === "" ? "" : "\r\n ") + chunk;
+  return result;
 }
 
 function buildIcsCalendar({
@@ -307,5 +382,5 @@ function buildIcsCalendar({
   }
 
   lines.push("END:VCALENDAR");
-  return `${lines.join("\r\n")}\r\n`;
+  return `${lines.map(foldIcsLine).join("\r\n")}\r\n`;
 }

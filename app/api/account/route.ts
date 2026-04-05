@@ -32,10 +32,15 @@ export async function PATCH(request: Request) {
 
   const { error } = await supabase
     .from("profiles")
-    .update({
-      display_name: displayName,
-    })
-    .eq("id", user.id);
+    .upsert(
+      {
+        id: user.id,
+        display_name: displayName,
+      },
+      {
+        onConflict: "id",
+      }
+    );
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
