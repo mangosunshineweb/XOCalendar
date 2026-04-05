@@ -548,10 +548,6 @@ function findAvailabilityIndexByUserAndDate(
   }
 
   return -1;
-}
-
-function dedupeAvailabilityRows(rows: WeeklyAvailabilityRow[]) {
-  const byKey = new Map<string, WeeklyAvailabilityRow>();
 
   for (const row of rows) {
     byKey.set(`${row.user_id}|${normalizeDateKey(row.practice_date)}`, row);
@@ -573,11 +569,7 @@ function TinyStat({ tone, value }: { tone: AvailabilityStatus; value: number }) 
     unavailable: "No",
   };
 
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${map[tone]}`}>
-      {label[tone]} {value}
-    </span>
-  );
+
 }
 
 function StatusButton({
