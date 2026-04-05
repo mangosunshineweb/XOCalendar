@@ -573,7 +573,11 @@ function TinyStat({ tone, value }: { tone: AvailabilityStatus; value: number }) 
     unavailable: "No",
   };
 
-
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${map[tone]}`}>
+      {label[tone]} {value}
+    </span>
+  );
 }
 
 function StatusButton({
