@@ -1,5 +1,6 @@
 "use client";
 
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AvailabilityStatus, TeamMatchRow } from "@/types/team";
 
@@ -46,6 +47,7 @@ export function MonthOverview({
   today,
 }: Props) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
   const [year, month] = currentMonth.split("-").map(Number);
 
@@ -75,7 +77,9 @@ export function MonthOverview({
   );
 
   const handleWeekClick = (weekStart: string) => {
-    router.push(`/dashboard?week=${weekStart}&month=${currentMonth}`);
+    startTransition(() => {
+      router.push(`/dashboard?week=${weekStart}&month=${currentMonth}`);
+    });
   };
 
   return (
@@ -94,24 +98,52 @@ export function MonthOverview({
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => router.push(`/dashboard?month=${prevMonth}`)}
+            disabled={isPending}
+            onClick={() => startTransition(() => router.push(`/dashboard?month=${prevMonth}`))}
             className="rounded-md border border-white/35 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-white hover:text-black"
           >
             ← Prev
           </button>
           <button
             type="button"
-            onClick={() => router.push(`/dashboard?month=${nextMonth}`)}
+            disabled={isPending}
+            onClick={() => startTransition(() => router.push(`/dashboard?month=${nextMonth}`))}
             className="rounded-md border border-white/35 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-white hover:text-black"
           >
             Next →
           </button>
         </div>
       </div>
+      {/* Grid area — loading overlay wrapper */}
+      <div className="relative">
+        {isPending ? (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60">
+            <svg
+              className="h-8 w-8 animate-spin text-white"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
+            </svg>
+          </div>
+        ) : null}
 
-      {/* Weekday column headers */}
-      <div className="grid grid-cols-7 border-b border-white/15">
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label) => (
+        {/* Weekday column headers */}
+        <div className="grid grid-cols-7 border-b border-white/15">
+{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label) => (
           <div
             key={label}
             className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-widest text-white/50"
@@ -206,6 +238,8 @@ export function MonthOverview({
           </button>
         );
       })}
+
+      </div>{/* end grid overlay wrapper */}
 
       {/* Legend */}
       <div className="flex items-center gap-4 border-t border-white/10 px-6 py-3">

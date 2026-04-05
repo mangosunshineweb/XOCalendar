@@ -131,10 +131,8 @@ export function ProfileAccountForm({
       </form>
 
       <div className="border-t border-white/15 pt-6">
-        <h2 className="text-lg font-semibold text-red-300">Danger zone</h2>
-        <p className="mt-1 text-sm text-white/70">
-          Deleting your account permanently removes your profile and related team records.
-        </p>
+      
+    
         <button
           type="button"
           onClick={onDelete}

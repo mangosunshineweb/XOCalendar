@@ -183,14 +183,7 @@ export default async function DashboardPage({
           </span>
         </Link>
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <span className="rounded-full border border-white/35 bg-black px-3 py-1 text-xs text-white/70">
-          {playersCount} players
-        </span>
-        <span className="rounded-full border border-white/35 bg-black px-3 py-1 text-xs text-white/70">
-          {(defaultDays ?? []).length} practice days/week
-        </span>
-      </div>
+    
     </section>
   );
 

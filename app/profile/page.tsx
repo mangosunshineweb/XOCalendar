@@ -75,7 +75,7 @@ export default async function ProfilePage() {
                 -&gt;
               </span>
             </Link>
-            <SignOutButton />
+      
           </div>
         </div>
       </section>
@@ -110,6 +110,7 @@ export default async function ProfilePage() {
           <p className="text-sm text-white/70">{subscriptionIssue ?? "Subscription URL is currently unavailable."}</p>
         )}
       </section>
+            <SignOutButton />
     </main>
   );
 }
