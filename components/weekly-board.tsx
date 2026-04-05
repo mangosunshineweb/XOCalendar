@@ -155,16 +155,6 @@ export function WeeklyBoard({
     return undefined;
   };
 
-  const openGoogleCalendarTemplate = (practiceWindow: PracticeWindow) => {
-    if (!practiceWindow.isPracticeDay || !practiceWindow.startTime || !practiceWindow.endTime) {
-      setEventMessage("This day is not a default practice day.");
-      return;
-    }
-
-    const templateUrl = buildGoogleCalendarTemplateUrl(practiceWindow);
-    globalThis.open(templateUrl, "_blank", "noopener,noreferrer");
-  };
-
   const saveStatus = async (
     practiceDate: string,
     startTime: string | null,
@@ -252,6 +242,20 @@ export function WeeklyBoard({
               {eventMessage}
             </p>
           ) : null}
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-white/65">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/90" />
+              all Yes
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-400/90" />
+              one or more Late
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-red-400/90" />
+              one or more No
+            </span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -268,8 +272,37 @@ export function WeeklyBoard({
                   unavailable: 0,
                 };
 
+                const hasNo = window.isPracticeDay && dayTotals.unavailable > 0;
+                const hasLate = window.isPracticeDay && dayTotals.late > 0;
+                const isAllYes =
+                  window.isPracticeDay &&
+                  roster.length > 0 &&
+                  dayTotals.available === roster.length;
+
+                const dayToneClass = hasNo
+                  ? "border-red-300/60 bg-red-500/20"
+                  : hasLate
+                    ? "border-amber-300/60 bg-amber-500/20"
+                    : isAllYes
+                      ? "border-emerald-300/60 bg-emerald-500/20"
+                      : "border-white/20";
+
+                const statusBadge = hasNo
+                  ? "NO"
+                  : hasLate
+                    ? "LATE"
+                    : isAllYes
+                      ? "ALL YES"
+                      : null;
+
+                const statusBadgeClass = hasNo
+                  ? "border border-red-200/80 bg-red-500/35 text-red-50"
+                  : hasLate
+                    ? "border border-amber-200/80 bg-amber-500/35 text-amber-50"
+                    : "border border-emerald-200/80 bg-emerald-500/35 text-emerald-50";
+
                 return (
-                  <div key={window.id} className="space-y-2 border-l border-white/20 px-4 py-3">
+                  <div key={window.id} className={`space-y-2 border-l px-4 py-3 ${dayToneClass}`}>
                     <div className="font-semibold text-white">{window.label}</div>
                     {matchesByDate.get(window.date)?.length ? (
                       <div className="space-y-1 rounded border border-white/25 bg-black px-2 py-1">
@@ -299,23 +332,17 @@ export function WeeklyBoard({
                         <div className="text-[11px] text-white/65">
                           {dayTotals.available}/{roster.length} 
                         </div>
+                        {statusBadge ? (
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusBadgeClass}`}>
+                            {statusBadge}
+                          </span>
+                        ) : null}
                       </>
                     ) : (
                       <div className="inline-flex rounded-full border border-white/25 px-2.5 py-1 text-[11px] text-white/65">
                         Off day
                       </div>
                     )}
-                    {window.isPracticeDay ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => openGoogleCalendarTemplate(window)}
-                          className="rounded-md border border-white/35 bg-black px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-white hover:text-black"
-                        >
-                          Open in Google
-                        </button>
-                      </div>
-                    ) : null}
                   </div>
                 );
               })}
@@ -511,9 +538,9 @@ function StatusPill({ status }: { status?: AvailabilityStatus }) {
   }
 
   const map: Record<AvailabilityStatus, string> = {
-    available: "border-white/35 bg-black text-white",
+    available: "border-white/35 bg-black text-emerald-300",
     late: "border-white/35 bg-black text-white",
-    unavailable: "border-white/35 bg-black text-white",
+    unavailable: "border-white/35 bg-black text-red-300",
   };
 
   const label: Record<AvailabilityStatus, string> = {
@@ -539,26 +566,6 @@ function formatMatchTime(value: string) {
 
 function normalizeDateKey(value: string) {
   return value.slice(0, 10);
-}
-
-function toGoogleLocalDateTime(date: string, time: string) {
-  const compactDate = date.replaceAll("-", "");
-  const compactTime = time.replaceAll(":", "");
-  return `${compactDate}T${compactTime}00`;
-}
-
-function buildGoogleCalendarTemplateUrl(practiceWindow: PracticeWindow) {
-  const startAt = toGoogleLocalDateTime(practiceWindow.date, practiceWindow.startTime ?? "18:00");
-  const endAt = toGoogleLocalDateTime(practiceWindow.date, practiceWindow.endTime ?? "20:00");
-  const params = new URLSearchParams({
-    action: "TEMPLATE",
-    text: "CS Team Practice",
-    details: `Team practice session for ${practiceWindow.label}`,
-    dates: `${startAt}/${endAt}`,
-    ctz: COPENHAGEN_TIME_ZONE,
-  });
-
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
 function getIsoWeekNumber(dateKey: string) {

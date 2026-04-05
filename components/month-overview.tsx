@@ -171,16 +171,63 @@ export function MonthOverview({
               weekIndex < weeks.length - 1 ? "border-b border-white/10" : ""
             }`}
           >
-            {week.days.map((day) => (
+            {week.days.map((day) => {
+              const isPracticeInMonth = day.isPracticeDay && day.isCurrentMonth;
+              const hasNo = isPracticeInMonth && day.unavailable > 0;
+              const hasLate = isPracticeInMonth && day.late > 0;
+              const isAllYes =
+                isPracticeInMonth &&
+                totalMembers > 0 &&
+                day.available === totalMembers;
+
+              const dayToneClass = hasNo
+                ? "border-red-300/60 bg-red-500/30"
+                : hasLate
+                  ? "border-amber-300/60 bg-amber-500/30"
+                  : isAllYes
+                    ? "border-emerald-300/60 bg-emerald-500/30"
+                    : isPracticeInMonth
+                      ? "border-white/10 bg-white/2"
+                      : "border-white/10";
+
+              const pillToneClass = hasNo
+                ? "border border-red-200/80 bg-red-500/35 text-red-50"
+                : hasLate
+                  ? "border border-amber-200/80 bg-amber-500/35 text-amber-50"
+                  : isAllYes
+                    ? "border border-emerald-200/80 bg-emerald-500/35 text-emerald-50"
+                    : "border border-white/25 text-white/70";
+
+              const lineToneClass = hasNo
+                ? "text-red-50"
+                : hasLate
+                  ? "text-amber-50"
+                  : isAllYes
+                    ? "text-emerald-50"
+                    : "text-white/60";
+
+              const dotToneClass = hasNo
+                ? "bg-red-100"
+                : hasLate
+                  ? "bg-amber-100"
+                  : isAllYes
+                    ? "bg-emerald-100"
+                    : "bg-white/60";
+
+              const statusLabel = hasNo
+                ? "NO"
+                : hasLate
+                  ? "LATE"
+                  : isAllYes
+                    ? "ALL YES"
+                    : null;
+
+              return (
               <div
                 key={day.date}
-                className={`relative h-32 border-r border-white/10 p-2.5 last:border-r-0 ${
+                className={`relative h-32 border-r p-2.5 last:border-r-0 ${
                   !day.isCurrentMonth ? "opacity-25" : ""
-                } ${
-                  day.isPracticeDay && day.isCurrentMonth
-                    ? "bg-white/2"
-                    : ""
-                }`}
+                } ${dayToneClass}`}
               >
                 {day.date === week.weekStart ? (
                   <span className="absolute right-2 top-2 rounded-full border border-white/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">
@@ -217,17 +264,18 @@ export function MonthOverview({
                 {/* Practice day indicators */}
                 {day.isPracticeDay && day.isCurrentMonth ? (
                   <div className="mt-1.5 space-y-1">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-white/25 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/70">
-                      Practice
+                    <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${pillToneClass}`}>
+                      {statusLabel ? `Practice · ${statusLabel}` : "Practice"}
                     </span>
-                    <div className="flex items-center gap-1.5 text-[11px] text-white/60">
-                      <span className="h-1.5 w-1.5 rounded-full bg-white/60" />
+                    <div className={`flex items-center gap-1.5 text-[11px] ${lineToneClass}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${dotToneClass}`} />
                       {day.available}/{totalMembers} in
                     </div>
                   </div>
                 ) : null}
               </div>
-            ))}
+              );
+            })}
 
             {/* Hover "view week" affordance — visually subtle */}
             {hasPracticeDay || hasMatchDay ? (

@@ -349,12 +349,23 @@ alter table public.weekly_availability enable row level security;
 alter table public.extra_availability enable row level security;
 alter table public.team_matches enable row level security;
 
+drop policy if exists "profiles_select_if_teammate" on public.profiles;
 drop policy if exists "profiles_select_own" on public.profiles;
-create policy "profiles_select_own"
+create policy "profiles_select_if_teammate"
 on public.profiles
 for select
 to authenticated
-using ((select auth.uid()) = id);
+using (
+  (select auth.uid()) = id
+  or exists (
+    select 1
+    from public.team_members tm_self
+    join public.team_members tm_target
+      on tm_target.team_id = tm_self.team_id
+    where tm_self.user_id = (select auth.uid())
+      and tm_target.user_id = profiles.id
+  )
+);
 
 drop policy if exists "profiles_insert_own" on public.profiles;
 create policy "profiles_insert_own"
