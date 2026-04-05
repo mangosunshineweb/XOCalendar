@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { GoogleCalendarSettings } from "@/components/google-calendar-settings";
 import { ProfileAccountForm } from "@/components/profile-account-form";
 import { SignOutButton } from "@/app/components/sign-out-button";
 import { createCalendarFeedToken } from "@/lib/calendar/feed-token";
@@ -23,11 +22,7 @@ export default async function ProfilePage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const { data: connection } = await supabase
-    .from("google_connections")
-    .select("google_email, calendar_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+
 
   const { data: membership } = await supabase
     .from("team_members")
@@ -90,24 +85,10 @@ export default async function ProfilePage() {
         initialDisplayName={profile?.display_name ?? ""}
       />
 
-      <section className="space-y-4 rounded-3xl border border-white/35 bg-black p-6 text-white">
-        <div>
-          <h2 className="text-xl font-semibold">Google Calendar Settings</h2>
-          <p className="mt-1 text-sm text-white/70">
-            Choose which Google Calendar should be used for practice conflict checks.
-          </p>
-        </div>
-
-        <GoogleCalendarSettings
-          googleEmail={connection?.google_email ?? null}
-          selectedCalendarId={connection?.calendar_id ?? "primary"}
-        />
-      </section>
-
       <section className="space-y-3 rounded-3xl border border-white/35 bg-black p-6 text-white">
         <h2 className="text-xl font-semibold">Calendar Subscription URL</h2>
         <p className="text-sm text-white/70">
-          Add this URL in Google Calendar via Other calendars -&gt; Add by URL to keep your calendar synced with app updates.
+          Add this URL in Google Calendar via Other calendars → Add by URL to keep your calendar synced with app updates.
         </p>
         {subscriptionUrl ? (
           <>

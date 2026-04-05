@@ -11,16 +11,11 @@ export function GoogleSignInButton({ className, label = "Sign in with Google" }:
   const signIn = async () => {
     const supabase = createClient();
     const origin = window.location.origin;
-    const calendarScopes = [
-      "https://www.googleapis.com/auth/calendar.readonly",
-      "https://www.googleapis.com/auth/calendar.events",
-    ].join(" ");
 
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${origin}/auth/callback`,
-        scopes: calendarScopes,
         queryParams: {
           access_type: "offline",
           prompt: "consent",
